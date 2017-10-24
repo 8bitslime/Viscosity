@@ -118,8 +118,8 @@ bodyID bodyCreate(world** ptr) {
 
 	w->body_type[index]  = BODY_STATIC;
 	w->body_pos[index]   = 
-	w->body_vel[index]   =
-	w->body_avel[index]  = vec3Zero;
+	w->body_vel[index]   = vec3Zero;
+	w->body_avel[index]  = (vec3) { 0, 0, mm_dpi };
 	w->body_rot[index]   = quatIndentity;
 	w->body_aabb[index]  = (aabb){0};
 	w->body_shape[index] = NULL;
@@ -221,9 +221,9 @@ static inline void solveContact(world *w, contact_joint *j) {
 	shape* sA = w->body_shape[a];
 	shape* sB = w->body_shape[b];
 
-	//if (sA->type == SHAPE_PLANE) {
-	//	w->body_vel[b] = (vec3) {0, mm_abs(w->body_vel[b].y * sB->restitution), 0};
-	//}
+	if (sA->type == SHAPE_PLANE) {
+		w->body_vel[b] = (vec3) {0, mm_abs(w->body_vel[b].y * sB->restitution), 0};
+	}
 
 	vec3 relVel;
 	vec3Sub(&relVel, &w->body_vel[b], &w->body_vel[a]);
@@ -233,7 +233,7 @@ static inline void solveContact(world *w, contact_joint *j) {
 		return;
 	}
 
-	printf("contactVel: %f\n", contactVel);
+	//vec3Sub(&w->body_vel[b], &w->body_vel[b], &relVel);
 }
 
 //Simulation
@@ -243,14 +243,29 @@ static inline void integrateVelocity(world *w, scalar dt) {
 
 	for (size_t i = 0; i < w->body_cap; i++) {
 		if (w->body_type[i] > BODY_STATIC) {
-			vec3 delta;
-			vec3MulScalar(&delta, &w->body_vel[i], dt);
-			vec3Add(&w->body_pos[i], &w->body_pos[i], &delta);
+			{ //Linear velocity
+				vec3 delta;
+				vec3MulScalar(&delta, &w->body_vel[i], dt);
+				vec3Add(&w->body_pos[i], &w->body_pos[i], &delta);
+			}
+			{ //Angular velocity
+				scalar hdt = dt * (scalar)0.5;
+				quat adelta;
+				adelta.w = 0;
+				adelta.axis = w->body_avel[i];
+				quat hw;
+				quatMulScalar(&hw, &adelta, hdt);
+				quat hwq;
+				quatMul(&hwq, &hw, &w->body_rot[i]);
+				quat end;
+				quatAdd(&end, &w->body_rot[i], &hwq);
+				quatNormalize(&w->body_rot[i], &end);
+			}
 
 			if (w->body_type[i] == BODY_DYNAMIC) {
+				//Gravy
 				vec3Add(&w->body_vel[i], &w->body_vel[i], &gravDelta);
 			}
-			//TODO: angular velocity
 		}
 	}
 }
