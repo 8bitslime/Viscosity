@@ -12,8 +12,7 @@ typedef struct joint {
 } joint;
 typedef struct contact_joint {
 	joint joint;
-	contact contacts[VISCO_MAX_CONTACTS];
-	size_t numContacts;
+	contact contact;
 } contact_joint, joint_max;
 
 //World
@@ -118,8 +117,8 @@ bodyID bodyCreate(world** ptr) {
 
 	w->body_type[index]  = BODY_STATIC;
 	w->body_pos[index]   = 
-	w->body_vel[index]   = vec3Zero;
-	w->body_avel[index]  = (vec3) { 0, 0, mm_dpi };
+	w->body_vel[index]   =
+	w->body_avel[index]  = vec3Zero;
 	w->body_rot[index]   = quatIndentity;
 	w->body_aabb[index]  = (aabb){0};
 	w->body_shape[index] = NULL;
@@ -178,6 +177,47 @@ void bodySetShape(world *w, bodyID b, shape *s) {
 	}
 }
 
+static inline void applyForce(world *w, bodyID b, const vec3 *pos, const vec3 *force) {
+	scalar mass;
+	mat3 inertia;
+
+	if (w->body_shape[b] != NULL) {
+		mass = (scalar)1.0 / w->body_shape[b]->mass;
+		inertia = w->body_shape[b]->interiaTensor;
+	} else {
+		mass = 1;
+		inertia = mat3Identity;
+	}
+
+	//Linear velocity
+	vec3 linear;
+	vec3MulScalar(&linear, force, mass);
+	vec3Add(&w->body_vel[b], &w->body_vel[b], &linear);
+
+	//Angular velocity
+	vec3 toPos;
+	vec3Sub(&toPos, pos, &w->body_pos[b]);
+	vec3 cross;
+	vec3Cross(&cross, &toPos, force);
+	vec3 torque;
+	mat3MulVec3(&torque, &w->body_shape[b]->interiaTensor, &cross);
+	vec3Add(&w->body_avel[b], &w->body_avel[b], &torque);
+}
+void bodyApplyForce(world *w, bodyID b, const vec3 *pos, const vec3 *force) {
+	applyForce(w, b, pos, force);
+}
+
+static inline void velAtPoint(vec3 *dest, world *w, bodyID b, const vec3 *pos) {
+	vec3 toPos;
+	vec3Sub(&toPos, pos, &w->body_pos[b]);
+	vec3 angular;
+	vec3Cross(&angular, &w->body_avel[b], &toPos);
+	vec3Add(dest, &w->body_vel[b], &angular);
+}
+void bodyGetVelocityAtPoint(vec3 *dest, world *w, bodyID b, const vec3 *pos) {
+	velAtPoint(dest, w, b, pos);
+}
+
 //Joints
 static inline jointID pushJoint(world **ptr, joint *j) {
 	world *w = *ptr;
@@ -221,19 +261,40 @@ static inline void solveContact(world *w, contact_joint *j) {
 	shape* sA = w->body_shape[a];
 	shape* sB = w->body_shape[b];
 
-	if (sA->type == SHAPE_PLANE) {
-		w->body_vel[b] = (vec3) {0, mm_abs(w->body_vel[b].y * sB->restitution), 0};
-	}
+	vec3 velA, velB;
+	velAtPoint(&velA, w, a, &j->contact.position);
+	velAtPoint(&velB, w, b, &j->contact.position);
 
-	vec3 relVel;
-	vec3Sub(&relVel, &w->body_vel[b], &w->body_vel[a]);
-	scalar contactVel = vec3Dot(&relVel, &j->contacts[0].normal);
+	vec3 relative;
+	vec3Sub(&relative, &velB, &velA);
+	scalar contactVel = vec3Dot(&relative, &j->contact.normal);
 
 	if (contactVel > 0) {
 		return;
-	}
+	} else {
+		scalar e = (sA->restitution + sB->restitution) * (scalar)0.5 + 1;
+		scalar r = e * contactVel * (sA->mass + sB->mass);
 
-	//vec3Sub(&w->body_vel[b], &w->body_vel[b], &relVel);
+		if (w->body_type[a] == BODY_DYNAMIC) {
+			vec3 force;
+			vec3MulScalar(&force, &j->contact.normal, r);
+			applyForce(w, b, &j->contact.position, &force);
+		}
+		if (w->body_type[b] == BODY_DYNAMIC) {
+			vec3 force;
+			vec3MulScalar(&force, &j->contact.normal, -r);
+			//TODO: add friction
+			applyForce(w, b, &j->contact.position, &force);
+
+			//Error handling
+			//if (j->contact.distance > 0.0001) {
+			//	//TODO: limit amount of error handling
+			//	vec3 err;
+			//	vec3MulScalar(&err, &j->contact.normal, j->contact.distance);
+			//	vec3Add(&w->body_pos[b], &w->body_pos[b], &err);
+			//}
+		}
+	}
 }
 
 //Simulation
@@ -291,11 +352,13 @@ static inline void naive_collision(world **ptr) { // O(n^2) broad phase, hella o
 
 						//Collision detection and creating manifold
 						contact_joint constraint;
-						if (constraint.numContacts = shapeCollide(constraint.contacts, 4,
+						contact contacts[4];
+						int numContacts;
+
+						if (numContacts = shapeCollide(contacts, 4,
 							w->body_shape[i], &w->body_pos[i], &w->body_rot[i],
 							w->body_shape[j], &w->body_pos[j], &w->body_rot[j])) {
 
-							//Collisions detected and contacts generated
 							constraint.joint.type = JOINT_CONTACT;
 
 							//Edge case with plane shape
@@ -307,9 +370,14 @@ static inline void naive_collision(world **ptr) { // O(n^2) broad phase, hella o
 								constraint.joint.b = j;
 							}
 
-							//Add joint for resolution
-							pushJoint(ptr, (joint*)&constraint);
-							w = *ptr;
+							for (int c = 0; c < numContacts; c++) {
+								//Collisions detected and contacts generated
+								constraint.contact = contacts[i];
+
+								//Add joint for resolution
+								pushJoint(ptr, (joint*)&constraint);
+								w = *ptr;
+							}
 						}
 					}
 				}

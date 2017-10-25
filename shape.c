@@ -24,8 +24,8 @@ shape* shapeCreatePlane(const vec3 *n, scalar d) {
 	plane *ret = (plane*)malloc(sizeof(plane));
 
 	ret->s.type = SHAPE_PLANE;
-	ret->s.mass = (scalar)0.;
-	ret->s.restitution = (scalar)0.;
+	ret->s.mass = 0;
+	ret->s.restitution = 1;
 
 	vec3 normalized;
 	vec3Normalize(&normalized, n);
@@ -36,23 +36,45 @@ shape* shapeCreatePlane(const vec3 *n, scalar d) {
 	return (shape*)ret;
 }
 
+static inline void sphereIntertia(sphere *s) {
+	scalar inertia = 1 / ((scalar)(2./5.) * s->s.mass * s->radius * s->radius);
+	mat3Diagonal(&s->s.interiaTensor, inertia);
+}
+static inline void sphereMass(sphere *s, scalar density) {
+	s->s.mass = (scalar)(4./3.) * mm_pi * s->radius * s->radius * s->radius * density;
+	sphereIntertia(s);
+}
 shape* shapeCreateSphere(scalar r) {
 	sphere *ret = (sphere*)malloc(sizeof(sphere));
 
 	ret->s.type = SHAPE_SPHERE;
-	ret->s.mass = ((scalar)(4./3.) * mm_pi) * r * r * r; // 4/3 pi r^3
-	ret->s.restitution = (scalar)0.9f;
-
+	ret->s.restitution = 0.5f;
+	ret->s.friction = 1;
 	ret->radius = r;
+	sphereMass(ret, 1);
 
 	return (shape*)ret;
 }
 
-void shapeSetDensity(shape *shape, scalar density) {
+void shapeSetDensity(shape *s, scalar density) {
+	switch (s->type) {
+	case SHAPE_PLANE:
+		return;
+
+	case SHAPE_SPHERE:
+		sphereMass((sphere*)s, density);
+		return;
+	}
 }
-void shapeSetRestitution(shape *shape, scalar restituion) {
-}
-void shapeSetFriction(shape *shape, scalar friction) {
+void shapeRecalcIntertia(shape *s) {
+	switch (s->type) {
+	case SHAPE_PLANE:
+		return;
+
+	case SHAPE_SPHERE:
+		sphereIntertia((sphere*)s);
+		return;
+	}
 }
 
 static inline void genSphereAabb(aabb *dest, const sphere *s) {
@@ -109,9 +131,9 @@ static inline int collideSphereSphere(contact *dest, const sphere *a, const vec3
 	} else {
 		ret.distance = radius - distance;
 		vec3DivScalar(&ret.normal, &t, distance);
-		vec3 normalMul;
-		vec3MulScalar(&normalMul, &ret.normal, a->radius);
-		vec3Add(&ret.position, posa, &normalMul);
+		vec3 pos;
+		vec3MulScalar(&pos, &ret.normal, a->radius);
+		vec3Add(&ret.position, posa, &pos);
 	}
 
 	*dest = ret;

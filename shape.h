@@ -14,6 +14,7 @@ typedef enum shapeType {
 typedef struct shape {
 	shapeType type;
 	scalar mass;
+	mat3 interiaTensor; //This is the _INVERSE_ of the inertia tensor
 	scalar restitution;
 	scalar friction;
 } shape;
@@ -30,8 +31,7 @@ VISCO_API shape* shapeCreatePlane(const vec3 *normal, scalar distance);
 VISCO_API shape* shapeCreateSphere(scalar radius);
 
 VISCO_API void shapeSetDensity(shape *shape, scalar density);
-VISCO_API void shapeSetRestitution(shape *shape, scalar restituion);
-VISCO_API void shapeSetFriction(shape *shape, scalar friction);
+VISCO_API void shapeRecalcIntertia(shape* shape);
 
 VISCO_API void shapeGenerateAabb(aabb *dest, const shape *shape, const quat *rot);
 

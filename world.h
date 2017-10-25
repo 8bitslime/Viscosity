@@ -33,4 +33,10 @@ VISCO_API void bodyGetMat4(mat4 *dest, world *world, bodyID body);
 
 VISCO_API void bodySetShape(world *world, bodyID body, shape *shape);
 
+VISCO_API void bodyApplyForce(world *world, bodyID body, const vec3 *pos, const vec3 *force);
+VISCO_API void bodyApplyForceAtCenter(world *world, bodyID body, const vec3 *force);
+VISCO_API void bodyApplyTorque(world *world, bodyID body, const vec3 *torque);
+
+VISCO_API void bodyGetVelocityAtPoint(vec3 *dest, world *world, bodyID body, const vec3 *pos);
+
 //VISCO_API void jointDestroy(world *world, jointID joint);
