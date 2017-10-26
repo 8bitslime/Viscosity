@@ -25,7 +25,8 @@ shape* shapeCreatePlane(const vec3 *n, scalar d) {
 
 	ret->s.type = SHAPE_PLANE;
 	ret->s.mass = 0;
-	ret->s.restitution = 1;
+	ret->s.restitution = 0.5f;
+	ret->s.friction = 0.6f;
 
 	vec3 normalized;
 	vec3Normalize(&normalized, n);
@@ -37,11 +38,12 @@ shape* shapeCreatePlane(const vec3 *n, scalar d) {
 }
 
 static inline void sphereIntertia(sphere *s) {
-	scalar inertia = 1 / ((scalar)(2./5.) * s->s.mass * s->radius * s->radius);
-	mat3Diagonal(&s->s.interiaTensor, inertia);
+	scalar inertia = (scalar)(2./5.) * s->s.mass * s->radius * s->radius;
+	mat3Diagonal(&s->s.inertiaTensor, inertia);
+	mat3Diagonal(&s->s.invInertiaTensor, 1.f / inertia);
 }
 static inline void sphereMass(sphere *s, scalar density) {
-	s->s.mass = (scalar)(4./3.) * mm_pi * s->radius * s->radius * s->radius * density;
+	s->s.mass = (4.f/3.f) * mm_pi * s->radius * s->radius * s->radius * density;
 	sphereIntertia(s);
 }
 shape* shapeCreateSphere(scalar r) {
@@ -49,7 +51,7 @@ shape* shapeCreateSphere(scalar r) {
 
 	ret->s.type = SHAPE_SPHERE;
 	ret->s.restitution = 0.5f;
-	ret->s.friction = 1;
+	ret->s.friction = 0.4f;
 	ret->radius = r;
 	sphereMass(ret, 1);
 
@@ -120,24 +122,24 @@ static inline int collideSphereSphere(contact *dest, const sphere *a, const vec3
 
 	if (distance > radius) {
 		return 0;
-	}
-
-	contact ret;
-
-	if (distance == (scalar)0.0) {
-		ret.distance = a->radius;
-		ret.normal = vec3YAxis;
-		ret.position = *posa;
 	} else {
-		ret.distance = radius - distance;
-		vec3DivScalar(&ret.normal, &t, distance);
-		vec3 pos;
-		vec3MulScalar(&pos, &ret.normal, a->radius);
-		vec3Add(&ret.position, posa, &pos);
-	}
+		contact ret;
 
-	*dest = ret;
-	return 1;
+		if (distance == 0) {
+			ret.distance = a->radius * 2;
+			ret.normal = vec3YAxis;
+			ret.position = *posa;
+		} else {
+			ret.distance = radius - distance;
+			vec3MulScalar(&ret.normal, &t, 1.f / distance);
+			vec3 pos;
+			vec3MulScalar(&pos, &ret.normal, a->radius);
+			vec3Add(&ret.position, posa, &pos);
+		}
+
+		*dest = ret;
+		return 1;
+	}
 }
 int shapeCollide(contact *dest, size_t maxContacts, const shape *a, const vec3 *posa, const quat *rota,
 				 const shape *b, const vec3 *posb, const quat *rotb) {

@@ -182,8 +182,12 @@ static inline void applyForce(world *w, bodyID b, const vec3 *pos, const vec3 *f
 	mat3 inertia;
 
 	if (w->body_shape[b] != NULL) {
-		mass = (scalar)1.0 / w->body_shape[b]->mass;
-		inertia = w->body_shape[b]->interiaTensor;
+		scalar m = w->body_shape[b]->mass;
+		if (m == 0 || w->body_shape[b]->type == SHAPE_PLANE) {
+			return;
+		}
+		mass = 1.f / m;
+		inertia = w->body_shape[b]->invInertiaTensor;
 	} else {
 		mass = 1;
 		inertia = mat3Identity;
@@ -200,7 +204,7 @@ static inline void applyForce(world *w, bodyID b, const vec3 *pos, const vec3 *f
 	vec3 cross;
 	vec3Cross(&cross, &toPos, force);
 	vec3 torque;
-	mat3MulVec3(&torque, &w->body_shape[b]->interiaTensor, &cross);
+	mat3MulVec3(&torque, &inertia, &cross);
 	vec3Add(&w->body_avel[b], &w->body_avel[b], &torque);
 }
 void bodyApplyForce(world *w, bodyID b, const vec3 *pos, const vec3 *force) {
@@ -213,6 +217,32 @@ static inline void velAtPoint(vec3 *dest, world *w, bodyID b, const vec3 *pos) {
 	vec3 angular;
 	vec3Cross(&angular, &w->body_avel[b], &toPos);
 	vec3Add(dest, &w->body_vel[b], &angular);
+}
+static inline void forceAtPoint(vec3 *dest, world *w, bodyID b, const vec3 *pos) {
+	scalar mass;
+	mat3 inertia;
+
+	if (w->body_shape[b] != NULL) {
+		mass = w->body_shape[b]->mass;
+		if (mass == 0 || w->body_shape[b]->type == SHAPE_PLANE) {
+			*dest = vec3Zero;
+			return;
+		}
+		inertia = w->body_shape[b]->inertiaTensor;
+	} else {
+		mass = 1;
+		inertia = mat3Identity;
+	}
+
+	vec3 toPos;
+	vec3Sub(&toPos, pos, &w->body_pos[b]);
+	vec3 angular;
+	vec3Cross(&angular, &w->body_avel[b], &toPos);
+	vec3 torque;
+	mat3MulVec3(&torque, &inertia, &angular);
+	vec3 force;
+	vec3MulScalar(&force, &w->body_vel[b], mass);
+	vec3Add(dest, &force, &torque);
 }
 void bodyGetVelocityAtPoint(vec3 *dest, world *w, bodyID b, const vec3 *pos) {
 	velAtPoint(dest, w, b, pos);
@@ -262,37 +292,55 @@ static inline void solveContact(world *w, contact_joint *j) {
 	shape* sB = w->body_shape[b];
 
 	vec3 velA, velB;
-	velAtPoint(&velA, w, a, &j->contact.position);
-	velAtPoint(&velB, w, b, &j->contact.position);
+	//velAtPoint(&velA, w, a, &j->contact.position);
+	//velAtPoint(&velB, w, b, &j->contact.position);
+	forceAtPoint(&velA, w, a, &j->contact.position);
+	forceAtPoint(&velB, w, b, &j->contact.position);
 
 	vec3 relative;
+	scalar contactVel;
 	vec3Sub(&relative, &velB, &velA);
-	scalar contactVel = vec3Dot(&relative, &j->contact.normal);
+	contactVel = vec3Dot(&relative, &j->contact.normal);
 
 	if (contactVel > 0) {
 		return;
 	} else {
-		scalar e = (sA->restitution + sB->restitution) * (scalar)0.5 + 1;
-		scalar r = e * contactVel * (sA->mass + sB->mass);
+		//restitution
+		scalar e = (sA->restitution + sB->restitution) * 0.4f;
+		scalar r = (1 + e) * contactVel;
+
+		//friction
+		vec3 fric;
+		{
+			vec3 temp;
+			vec3Cross(&temp, &relative, &j->contact.normal);
+			vec3Cross(&fric, &temp, &j->contact.normal);
+			vec3Normalize(&fric, &fric);
+
+			scalar f = (sA->friction + sB->friction) * 0.49f;
+			f *= -vec3Dot(&relative, &fric);
+
+			vec3MulScalar(&fric, &fric, f);
+		}
+
+		vec3 force;
+		vec3MulScalar(&force, &j->contact.normal, r);
+		vec3Sub(&force, &force, &fric);
 
 		if (w->body_type[a] == BODY_DYNAMIC) {
-			vec3 force;
-			vec3MulScalar(&force, &j->contact.normal, r);
-			applyForce(w, b, &j->contact.position, &force);
+			applyForce(w, a, &j->contact.position, &force);
 		}
 		if (w->body_type[b] == BODY_DYNAMIC) {
-			vec3 force;
-			vec3MulScalar(&force, &j->contact.normal, -r);
-			//TODO: add friction
+			vec3Negate(&force, &force);
 			applyForce(w, b, &j->contact.position, &force);
 
 			//Error handling
-			//if (j->contact.distance > 0.0001) {
-			//	//TODO: limit amount of error handling
-			//	vec3 err;
-			//	vec3MulScalar(&err, &j->contact.normal, j->contact.distance);
-			//	vec3Add(&w->body_pos[b], &w->body_pos[b], &err);
-			//}
+			if (j->contact.distance > 0.1) {
+				//TODO: limit amount of error handling
+				vec3 err;
+				vec3MulScalar(&err, &j->contact.normal, j->contact.distance);
+				vec3Add(&w->body_pos[b], &w->body_pos[b], &err);
+			}
 		}
 	}
 }
@@ -310,12 +358,14 @@ static inline void integrateVelocity(world *w, scalar dt) {
 				vec3Add(&w->body_pos[i], &w->body_pos[i], &delta);
 			}
 			{ //Angular velocity
-				scalar hdt = dt * (scalar)0.5;
+				if (dt > 0) {
+					vec3MulScalar(&w->body_avel[i], &w->body_avel[i], 0.9999f);
+				}
 				quat adelta;
 				adelta.w = 0;
 				adelta.axis = w->body_avel[i];
 				quat hw;
-				quatMulScalar(&hw, &adelta, hdt);
+				quatMulScalar(&hw, &adelta, dt * 0.5f);
 				quat hwq;
 				quatMul(&hwq, &hw, &w->body_rot[i]);
 				quat end;
@@ -372,7 +422,7 @@ static inline void naive_collision(world **ptr) { // O(n^2) broad phase, hella o
 
 							for (int c = 0; c < numContacts; c++) {
 								//Collisions detected and contacts generated
-								constraint.contact = contacts[i];
+								constraint.contact = contacts[c];
 
 								//Add joint for resolution
 								pushJoint(ptr, (joint*)&constraint);

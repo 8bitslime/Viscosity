@@ -14,7 +14,8 @@ typedef enum shapeType {
 typedef struct shape {
 	shapeType type;
 	scalar mass;
-	mat3 interiaTensor; //This is the _INVERSE_ of the inertia tensor
+	mat3 inertiaTensor;
+	mat3 invInertiaTensor;
 	scalar restitution;
 	scalar friction;
 } shape;
