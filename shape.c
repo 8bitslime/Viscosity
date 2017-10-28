@@ -25,12 +25,10 @@ shape* shapeCreatePlane(const vec3 *n, scalar d) {
 
 	ret->s.type = SHAPE_PLANE;
 	ret->s.mass = 0;
-	ret->s.restitution = 0.5f;
-	ret->s.friction = 0.6f;
+	ret->s.restitution = 0.001f;
+	ret->s.friction = 0.5f;
 
-	vec3 normalized;
-	vec3Normalize(&normalized, n);
-	ret->normal = normalized;
+	vec3Normalize(&ret->normal, n);
 
 	ret->distance = d;
 
@@ -50,8 +48,8 @@ shape* shapeCreateSphere(scalar r) {
 	sphere *ret = (sphere*)malloc(sizeof(sphere));
 
 	ret->s.type = SHAPE_SPHERE;
-	ret->s.restitution = 0.5f;
-	ret->s.friction = 0.4f;
+	ret->s.restitution = 0.6f;
+	ret->s.friction = 0.1f;
 	ret->radius = r;
 	sphereMass(ret, 1);
 
