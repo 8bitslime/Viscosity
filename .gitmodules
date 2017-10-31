@@ -1,0 +1,3 @@
+[submodule "MMath"]
+	path = MMath
+	url = https://github.com/8bitslime/MMath.git
