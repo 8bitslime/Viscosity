@@ -1,6 +1,6 @@
 #pragma once
 
-#include "MMath.h"
+#include "..\MMath\MMath.h"
 
 #define VISCO_INLINE inline
 
