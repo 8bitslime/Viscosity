@@ -3,3 +3,5 @@
 *.vcxproj
 *.user
 *.filters
+src/*.o
+libviscosity.a
