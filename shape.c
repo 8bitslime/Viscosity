@@ -14,6 +14,11 @@ typedef struct sphere {
 	scalar radius;
 } sphere;
 
+typedef struct box {
+	shape s;
+	vec3 size;
+} box;
+
 #pragma endregion Shape_Types
 
 void shapeDestroy(shape *s) {
@@ -25,7 +30,7 @@ shape* shapeCreatePlane(const vec3 *n, scalar d) {
 
 	ret->s.type = SHAPE_PLANE;
 	ret->s.mass = 0;
-	ret->s.restitution = 0.001f;
+	ret->s.restitution = 0.5f;
 	ret->s.friction = 0.5f;
 
 	vec3Normalize(&ret->normal, n);
@@ -48,7 +53,7 @@ shape* shapeCreateSphere(scalar r) {
 	sphere *ret = (sphere*)malloc(sizeof(sphere));
 
 	ret->s.type = SHAPE_SPHERE;
-	ret->s.restitution = 0.6f;
+	ret->s.restitution = 0.3f;
 	ret->s.friction = 0.1f;
 	ret->radius = r;
 	sphereMass(ret, 1);
@@ -139,6 +144,46 @@ static inline int collideSphereSphere(contact *dest, const sphere *a, const vec3
 		return 1;
 	}
 }
+static inline int collideBoxSphere(contact *dest, const box *a, const vec3 *posa, const quat *rota, 
+	const sphere *b, const vec3 *posb) {
+
+	vec3 relative;
+	vec3Sub(&relative, posb, posa);
+	quat reverse;
+	quatInverse(&reverse, rota);
+	quatMulVec3(&relative, &reverse, &relative);
+
+	aabb box = {
+		{-a->size.x, -a->size.y, -a->size.z},
+		{ a->size.x,  a->size.y,  a->size.z}
+	};
+	vec3 closest;
+	aabbClosestPoint(&closest, &box, &relative);
+	scalar dist = vec3Distance(&closest, &relative);
+
+	if (dist < b->radius) {
+		return 0;
+	} else {
+		dest->distance = b->radius - dist;
+		vec3 normal = {0};
+		if (mm_abs(closest.x) >= mm_abs(closest.y) || mm_abs(closest.x) >= mm_abs(closest.z)) {
+			normal.x = closest.x;
+		}
+		if (mm_abs(closest.y) >= mm_abs(closest.x) || mm_abs(closest.y) >= mm_abs(closest.z)) {
+			normal.y = closest.y;
+		}
+		if (mm_abs(closest.z) >= mm_abs(closest.x) || mm_abs(closest.z) >= mm_abs(closest.y)) {
+			normal.z = closest.z;
+		}
+		quatMulVec3(&normal, rota, &normal);
+		vec3Normalize(&dest->normal, &normal);
+
+		quatMulVec3(&relative, rota, &relative);
+		vec3Add(&dest->position, &relative, posa);
+
+		return 1;
+	}
+}
 int shapeCollide(contact *dest, size_t maxContacts, const shape *a, const vec3 *posa, const quat *rota,
 				 const shape *b, const vec3 *posb, const quat *rotb) {
 
@@ -150,7 +195,7 @@ int shapeCollide(contact *dest, size_t maxContacts, const shape *a, const vec3 *
 			break;
 
 		case SHAPE_SPHERE:
-			return collidePlaneSphere(dest, (plane*)a, (sphere*)b, posb);
+			return collidePlaneSphere(dest, (const plane*)a, (const sphere*)b, posb);
 			break;
 
 		default:
@@ -162,18 +207,36 @@ int shapeCollide(contact *dest, size_t maxContacts, const shape *a, const vec3 *
 	case SHAPE_SPHERE:
 		switch (b->type) {
 		case SHAPE_PLANE:
-			return collidePlaneSphere(dest, (plane*)b, (sphere*)a, posa);
+			return -collidePlaneSphere(dest, (const plane*)b, (const sphere*)a, posa);
 			break;
 
 		case SHAPE_SPHERE:
-			return collideSphereSphere(dest, (sphere*)a, posa, (sphere*)b, posb);
+			return collideSphereSphere(dest, (const sphere*)a, posa, (const sphere*)b, posb);
 			break;
+
+		case SHAPE_BOX:
+			return -collideBoxSphere(dest, (const box*)b, posb, rotb, (const sphere*)a, posa);
 
 		default:
 			return 0;
 			break;
 		}
 		break;
+
+	case SHAPE_BOX:
+		switch (b->type) {
+		case SHAPE_PLANE:
+			return 0;
+			break;
+
+		case SHAPE_SPHERE:
+			return collideBoxSphere(dest, (const box*)a, posa, rota, (const sphere*)b, posb);
+			break;
+
+		default:
+			return 0;
+			break;
+		}
 
 	default:
 		return 0;

@@ -428,8 +428,8 @@ static inline void naive_collision(world **ptr) { // O(n^2) broad phase, hella o
 
 							constraint.joint.type = JOINT_CONTACT;
 
-							//Edge case with plane shape
-							if (w->body_shape[j]->type == SHAPE_PLANE) {
+							if (numContacts < 0) {
+								numContacts = -numContacts;
 								constraint.joint.a = j;
 								constraint.joint.b = i;
 							} else {

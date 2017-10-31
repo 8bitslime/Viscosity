@@ -6,7 +6,7 @@
 typedef enum shapeType {
 	SHAPE_PLANE,
 	SHAPE_SPHERE,
-	SHAPE_CUBE,
+	SHAPE_BOX,
 	SHAPE_MESH,
 	SHAPE_COMPOUND
 } shapeType;
