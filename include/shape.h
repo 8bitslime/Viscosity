@@ -30,6 +30,7 @@ VISCO_API void shapeDestroy(shape* shape);
 
 VISCO_API shape* shapeCreatePlane(const vec3 *normal, scalar distance);
 VISCO_API shape* shapeCreateSphere(scalar radius);
+VISCO_API shape* shapeCreateBox(const vec3 *size);
 
 VISCO_API void shapeSetDensity(shape *shape, scalar density);
 VISCO_API void shapeRecalcIntertia(shape* shape);

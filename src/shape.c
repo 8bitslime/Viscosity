@@ -61,6 +61,37 @@ shape* shapeCreateSphere(scalar r) {
 	return (shape*)ret;
 }
 
+static inline void boxIntertia(box *b) {
+	scalar mx = (1.f/12.f) * b->s.mass * ((b->size.y * b->size.y + b->size.z * b->size.z) * 4);
+	scalar my = (1.f/12.f) * b->s.mass * ((b->size.x * b->size.x + b->size.z * b->size.z) * 4);
+	scalar mz = (1.f/12.f) * b->s.mass * ((b->size.x * b->size.x + b->size.y * b->size.y) * 4);
+	b->s.inertiaTensor = (mat3) {
+		mx, 0,  0,
+		0,  my, 0,
+		0,  0,  mz
+	};
+	b->s.invInertiaTensor = (mat3) {
+		1.f/mx, 0,      0,
+		0,      1.f/my, 0,
+		0,      0,      1.f/mz
+	};
+}
+static inline void boxMass(box *b, scalar density) {
+	b->s.mass = b->size.x * b->size.y, b->size.x * 8 * density;
+	boxIntertia(b);
+}
+shape* shapeCreateBox(const vec3 *size) {
+	box *ret = (box*)malloc(sizeof(box));
+
+	ret->s.type = SHAPE_BOX;
+	ret->s.restitution = 0.1f;
+	ret->s.friction = 0.5f;
+	vec3MulScalar(&ret->size, size, 0.5f);
+	boxMass(ret, 1);
+
+	return (shape*)ret;
+}
+
 void shapeSetDensity(shape *s, scalar density) {
 	switch (s->type) {
 	case SHAPE_PLANE:
@@ -68,6 +99,10 @@ void shapeSetDensity(shape *s, scalar density) {
 
 	case SHAPE_SPHERE:
 		sphereMass((sphere*)s, density);
+		return;
+
+	case SHAPE_BOX:
+		boxMass((box*)s, density);
 		return;
 	}
 }
@@ -79,6 +114,10 @@ void shapeRecalcIntertia(shape *s) {
 	case SHAPE_SPHERE:
 		sphereIntertia((sphere*)s);
 		return;
+
+	case SHAPE_BOX:
+		boxIntertia((box*)s);
+		return;
 	}
 }
 
@@ -88,16 +127,23 @@ static inline void genSphereAabb(aabb *dest, const sphere *s) {
 		{ s->radius, s->radius, s->radius }
 	};
 }
+static inline void genBoxAabb(aabb *dest, const box *b, const quat *rot) {
+	*dest = aabbInfinity;
+}
 
 void shapeGenerateAabb(aabb *dest, const shape *s, const quat *rot) {
 	switch (s->type) {
 	case SHAPE_PLANE:
 		*dest = aabbInfinity;
-		break;
+		return;
 
 	case SHAPE_SPHERE:
-		genSphereAabb(dest, (sphere*)s);
-		break;
+		genSphereAabb(dest, (const sphere*)s);
+		return;
+
+	case SHAPE_BOX:
+		genBoxAabb(dest, (const box*)s, rot);
+		return;
 	}
 }
 
@@ -161,19 +207,21 @@ static inline int collideBoxSphere(contact *dest, const box *a, const vec3 *posa
 	aabbClosestPoint(&closest, &box, &relative);
 	scalar dist = vec3Distance(&closest, &relative);
 
-	if (dist < b->radius) {
+	if (dist > b->radius) {
 		return 0;
 	} else {
+		//printf("colliding %f\n", dist);
+		//return 0;
 		dest->distance = b->radius - dist;
 		vec3 normal = {0};
 		if (mm_abs(closest.x) >= mm_abs(closest.y) || mm_abs(closest.x) >= mm_abs(closest.z)) {
-			normal.x = closest.x;
+			normal.x = 1;
 		}
 		if (mm_abs(closest.y) >= mm_abs(closest.x) || mm_abs(closest.y) >= mm_abs(closest.z)) {
-			normal.y = closest.y;
+			normal.y = 1;
 		}
 		if (mm_abs(closest.z) >= mm_abs(closest.x) || mm_abs(closest.z) >= mm_abs(closest.y)) {
-			normal.z = closest.z;
+			normal.z = 1;
 		}
 		quatMulVec3(&normal, rota, &normal);
 		vec3Normalize(&dest->normal, &normal);
