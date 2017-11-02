@@ -2,7 +2,7 @@
 
 #include "MMath.h"
 
-#define VISCO_INLINE inline
+#define VISCO_INLINE static inline
 
 #define VISCO_MAX_CONTACTS 4
 
