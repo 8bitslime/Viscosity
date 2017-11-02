@@ -41,7 +41,7 @@ shape* shapeCreatePlane(const vec3 *n, scalar d) {
 }
 
 static inline void sphereIntertia(sphere *s) {
-	scalar inertia = (scalar)(2./5.) * s->s.mass * s->radius * s->radius;
+	scalar inertia = (2.f/5.f) * s->s.mass * s->radius * s->radius;
 	mat3Diagonal(&s->s.inertiaTensor, inertia);
 	mat3Diagonal(&s->s.invInertiaTensor, 1.f / inertia);
 }
@@ -53,8 +53,8 @@ shape* shapeCreateSphere(scalar r) {
 	sphere *ret = (sphere*)malloc(sizeof(sphere));
 
 	ret->s.type = SHAPE_SPHERE;
-	ret->s.restitution = 0.3f;
-	ret->s.friction = 0.1f;
+	ret->s.restitution = 0.5f;
+	ret->s.friction = 0.5f;
 	ret->radius = r;
 	sphereMass(ret, 1);
 
@@ -84,7 +84,7 @@ shape* shapeCreateBox(const vec3 *size) {
 	box *ret = (box*)malloc(sizeof(box));
 
 	ret->s.type = SHAPE_BOX;
-	ret->s.restitution = 0.1f;
+	ret->s.restitution = 0.5f;
 	ret->s.friction = 0.5f;
 	vec3MulScalar(&ret->size, size, 0.5f);
 	boxMass(ret, 1);
@@ -205,29 +205,19 @@ static inline int collideBoxSphere(contact *dest, const box *a, const vec3 *posa
 	};
 	vec3 closest;
 	aabbClosestPoint(&closest, &box, &relative);
-	scalar dist = vec3Distance(&closest, &relative);
+	vec3 dir;
+	vec3Sub(&dir, &relative, &closest);
+	scalar dist = vec3Length(&dir);
 
 	if (dist > b->radius) {
 		return 0;
 	} else {
-		//printf("colliding %f\n", dist);
-		//return 0;
 		dest->distance = b->radius - dist;
-		vec3 normal = {0};
-		if (mm_abs(closest.x) >= mm_abs(closest.y) || mm_abs(closest.x) >= mm_abs(closest.z)) {
-			normal.x = 1;
-		}
-		if (mm_abs(closest.y) >= mm_abs(closest.x) || mm_abs(closest.y) >= mm_abs(closest.z)) {
-			normal.y = 1;
-		}
-		if (mm_abs(closest.z) >= mm_abs(closest.x) || mm_abs(closest.z) >= mm_abs(closest.y)) {
-			normal.z = 1;
-		}
-		quatMulVec3(&normal, rota, &normal);
-		vec3Normalize(&dest->normal, &normal);
+		quatMulVec3(&dir, rota, &dir);
+		vec3Normalize(&dest->normal, &dir);
 
-		quatMulVec3(&relative, rota, &relative);
-		vec3Add(&dest->position, &relative, posa);
+		quatMulVec3(&closest, rota, &closest);
+		vec3Add(&dest->position, &closest, posa);
 
 		return 1;
 	}
