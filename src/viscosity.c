@@ -1,6 +1,5 @@
 #include "viscosity.h"
 
-float viscoGetVersion() {
-	//TODO: version macros
-	return 0.1f;
+int viscoGetVersion(void) {
+	return VISCO_VERSION_0_1;
 }

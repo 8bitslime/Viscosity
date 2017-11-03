@@ -1,17 +1,16 @@
 #Build viscosity physics library
-OPTIONS = -std=c99 -Iinclude/ -IMMath/
+CC := gcc
+CFLAGS := -std=c99 -Iinclude/ -IMMath/
 
-viscosity: src/viscosity.o src/shape.o src/world.o
-	ar rcs libviscosity.a $^
+FILES := src/viscosity.o src/shape.o src/world.o
 
-src/viscosity.o: src/viscosity.c
-	gcc $(OPTIONS) -c -o src/viscosity.o src/viscosity.c
+libviscosity.a: $(FILES)
+	ar rcs libviscosity.a $(FILES)
 
-src/shape.o: src/shape.c
-	gcc $(OPTIONS) -c -o src/shape.o src/shape.c
-
-src/world.o: src/world.c
-	gcc $(OPTIONS) -c -o src/world.o src/world.c
+.PHONY: rebuild
+rebuild:
+	touch -c src/*.c
+	$(MAKE)
 
 .PHONY: clean
 clean:

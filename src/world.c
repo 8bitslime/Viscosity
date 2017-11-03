@@ -11,7 +11,7 @@ typedef struct joint {
 	bodyID a, b;
 } joint;
 typedef struct contact_joint {
-	joint joint;
+	joint j;
 	contact contact;
 } contact_joint, joint_max;
 
@@ -116,7 +116,7 @@ bodyID bodyCreate(world** ptr) {
 	}
 
 	w->body_type[index]  = BODY_STATIC;
-	w->body_pos[index]   = 
+	w->body_pos[index]   =
 	w->body_vel[index]   =
 	w->body_avel[index]  = vec3Zero;
 	w->body_rot[index]   = quatIndentity;
@@ -291,15 +291,15 @@ static inline jointID pushJoint(world **ptr, joint *j) {
 	return index;
 }
 static inline void destroyJoint(world *w, jointID j) {
-	w->joints[j].joint.type = JOINT_DELETE;
+	w->joints[j].j.type = JOINT_DELETE;
 	w->joint_empty[w->joint_empty_size++] = j;
 	w->joint_size--;
 }
 
 //Solve joints
 static inline void solveContact(world *w, contact_joint *j) {
-	bodyID a = j->joint.a;
-	bodyID b = j->joint.b;
+	bodyID a = j->j.a;
+	bodyID b = j->j.b;
 
 	shape* sA = w->body_shape[a];
 	shape* sB = w->body_shape[b];
@@ -426,15 +426,15 @@ static inline void naive_collision(world **ptr) { // O(n^2) broad phase, hella o
 							w->body_shape[i], &w->body_pos[i], &w->body_rot[i],
 							w->body_shape[j], &w->body_pos[j], &w->body_rot[j])) {
 
-							constraint.joint.type = JOINT_CONTACT;
+							constraint.j.type = JOINT_CONTACT;
 
 							if (numContacts < 0) {
 								numContacts = -numContacts;
-								constraint.joint.a = j;
-								constraint.joint.b = i;
+								constraint.j.a = j;
+								constraint.j.b = i;
 							} else {
-								constraint.joint.a = i;
-								constraint.joint.b = j;
+								constraint.j.a = i;
+								constraint.j.b = j;
 							}
 
 							for (int c = 0; c < numContacts; c++) {
@@ -454,7 +454,7 @@ static inline void naive_collision(world **ptr) { // O(n^2) broad phase, hella o
 }
 static inline void solveConstraints(world *w) {
 	for (size_t i = 0; i < w->joint_cap; i++) {
-		switch (w->joints[i].joint.type) {
+		switch (w->joints[i].j.type) {
 		case JOINT_DELETE:
 			break;
 		case JOINT_CONTACT:

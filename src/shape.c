@@ -34,7 +34,6 @@ shape* shapeCreatePlane(const vec3 *n, scalar d) {
 	ret->s.friction = 0.5f;
 
 	vec3Normalize(&ret->normal, n);
-
 	ret->distance = d;
 
 	return (shape*)ret;
@@ -190,7 +189,7 @@ static inline int collideSphereSphere(contact *dest, const sphere *a, const vec3
 		return 1;
 	}
 }
-static inline int collideBoxSphere(contact *dest, const box *a, const vec3 *posa, const quat *rota, 
+static inline int collideBoxSphere(contact *dest, const box *a, const vec3 *posa, const quat *rota,
 	const sphere *b, const vec3 *posb) {
 
 	vec3 relative;
