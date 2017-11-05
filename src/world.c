@@ -17,9 +17,7 @@ typedef struct contact_joint {
 
 //World
 typedef struct world {
-
 	vec3 gravity;
-
 	
 	size_t body_size;
 	size_t body_cap;
@@ -216,7 +214,7 @@ void bodyApplyForce(world *w, bodyID b, const vec3 *pos, const vec3 *force) {
 }
 
 static inline void velAtPoint(vec3 *dest, world *w, bodyID b, const vec3 *pos) {
-	if (w->body_type[b] == BODY_STATIC) {
+	if (w->body_type[b] <= BODY_STATIC) {
 		*dest = vec3Zero;
 		return;
 	} else {
@@ -228,7 +226,7 @@ static inline void velAtPoint(vec3 *dest, world *w, bodyID b, const vec3 *pos) {
 	}
 }
 static inline void forceAtPoint(vec3 *dest, world *w, bodyID b, const vec3 *pos) {
-	if (w->body_type[b] == BODY_STATIC) {
+	if (w->body_type[b] <= BODY_STATIC) {
 		*dest = vec3Zero;
 		return;
 	} else {
@@ -307,13 +305,13 @@ static inline void solveContact(world *w, contact_joint *j) {
 	//Error handling and checking body type
 	//TODO: limit amount of error handling
 	if (w->body_type[b] == BODY_DYNAMIC) {
-		if (j->contact.distance > 0.001f) {
+		if (j->contact.distance > 0.01f) {
 			vec3 err;
 			vec3MulScalar(&err, &j->contact.normal, j->contact.distance);
 			vec3Add(&w->body_pos[b], &w->body_pos[b], &err);
 		}
 	} else if (w->body_type[a] == BODY_DYNAMIC) {
-		if (j->contact.distance > 0.001f) {
+		if (j->contact.distance > 0.01f) {
 			vec3 err;
 			vec3MulScalar(&err, &j->contact.normal, -j->contact.distance);
 			vec3Add(&w->body_pos[a], &w->body_pos[a], &err);
@@ -322,20 +320,20 @@ static inline void solveContact(world *w, contact_joint *j) {
 		return;
 	}
 
-	vec3 velA, velB;
-	forceAtPoint(&velA, w, a, &j->contact.position);
-	forceAtPoint(&velB, w, b, &j->contact.position);
+	vec3 fA, fB;
+	forceAtPoint(&fA, w, a, &j->contact.position);
+	forceAtPoint(&fB, w, b, &j->contact.position);
 
 	vec3 relative;
-	vec3Sub(&relative, &velB, &velA);
-	scalar contactVel = vec3Dot(&relative, &j->contact.normal);
+	vec3Sub(&relative, &fB, &fA);
+	scalar contactForce = vec3Dot(&relative, &j->contact.normal);
 
-	if (contactVel > 0) {
+	if (contactForce > 0) {
 		return;
 	} else {
 		//restitution
-		scalar e = 1 + mm_max(sA->restitution, sB->restitution);
-		scalar r = e * contactVel;
+		scalar e = 1 + mm_min(sA->restitution, sB->restitution);
+		scalar r = e * contactForce;
 
 		//friction
 		vec3 fric;
@@ -373,11 +371,14 @@ static inline void integrateVelocity(world *w, scalar dt) {
 				vec3Add(&w->body_pos[i], &w->body_pos[i], &delta);
 			}
 			{ //Angular velocity
-				if (dt > 0) {
+					
+				{	//Angular dampening
+					//TODO: allow customizable dampening
 					vec3 dampen;
-					vec3MulScalar(&dampen, &w->body_avel[i], dt * 0.1f);
+					vec3MulScalar(&dampen, &w->body_avel[i], dt * 0.2f);
 					vec3Sub(&w->body_avel[i], &w->body_avel[i], &dampen);
 				}
+
 				quat adelta;
 				adelta.w = 0;
 				adelta.axis = w->body_avel[i];

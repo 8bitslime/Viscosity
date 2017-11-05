@@ -40,20 +40,20 @@ shape* shapeCreatePlane(const vec3 *n, scalar d) {
 }
 
 static inline void sphereIntertia(sphere *s) {
-	scalar inertia = (2.f/5.f) * s->s.mass * s->radius * s->radius;
+	scalar inertia = 2.f * s->s.mass * s->radius * s->radius / 5.f;
 	mat3Diagonal(&s->s.inertiaTensor, inertia);
 	mat3Diagonal(&s->s.invInertiaTensor, 1.f / inertia);
 }
 static inline void sphereMass(sphere *s, scalar density) {
-	s->s.mass = (4.f/3.f) * mm_pi * s->radius * s->radius * s->radius * density;
+	s->s.mass = 4.f / 3.f * mm_pi * (s->radius * s->radius * s->radius) * density;
 	sphereIntertia(s);
 }
 shape* shapeCreateSphere(scalar r) {
 	sphere *ret = (sphere*)malloc(sizeof(sphere));
 
 	ret->s.type = SHAPE_SPHERE;
-	ret->s.restitution = 0.5f;
-	ret->s.friction = 0.5f;
+	ret->s.restitution = 0.2f;
+	ret->s.friction = 0.4f;
 	ret->radius = r;
 	sphereMass(ret, 1);
 
@@ -61,9 +61,9 @@ shape* shapeCreateSphere(scalar r) {
 }
 
 static inline void boxIntertia(box *b) {
-	scalar mx = (1.f/12.f) * b->s.mass * ((b->size.y * b->size.y + b->size.z * b->size.z) * 4);
-	scalar my = (1.f/12.f) * b->s.mass * ((b->size.x * b->size.x + b->size.z * b->size.z) * 4);
-	scalar mz = (1.f/12.f) * b->s.mass * ((b->size.x * b->size.x + b->size.y * b->size.y) * 4);
+	scalar mx = b->s.mass * (b->size.y * b->size.y + b->size.z * b->size.z) * 4 / 12.f;
+	scalar my = b->s.mass * (b->size.x * b->size.x + b->size.z * b->size.z) * 4 / 12.f;
+	scalar mz = b->s.mass * (b->size.x * b->size.x + b->size.y * b->size.y) * 4 / 12.f;
 	b->s.inertiaTensor = (mat3) {
 		mx, 0,  0,
 		0,  my, 0,
@@ -76,7 +76,7 @@ static inline void boxIntertia(box *b) {
 	};
 }
 static inline void boxMass(box *b, scalar density) {
-	b->s.mass = b->size.x * b->size.y, b->size.x * 8 * density;
+	b->s.mass = b->size.x * b->size.y * b->size.z * 8 * density;
 	boxIntertia(b);
 }
 shape* shapeCreateBox(const vec3 *size) {
@@ -202,6 +202,7 @@ static inline int collideBoxSphere(contact *dest, const box *a, const vec3 *posa
 		{-a->size.x, -a->size.y, -a->size.z},
 		{ a->size.x,  a->size.y,  a->size.z}
 	};
+
 	vec3 closest;
 	aabbClosestPoint(&closest, &box, &relative);
 	vec3 dir;
@@ -212,6 +213,14 @@ static inline int collideBoxSphere(contact *dest, const box *a, const vec3 *posa
 		return 0;
 	} else {
 		dest->distance = b->radius - dist;
+
+		for (int i = 0; i < 3; i++) {
+			if (dir.data[i] < 0) {
+				dir.data[i] = -1;
+			} else if (dir.data[i] > 0) {
+				dir.data[i] = 1;
+			}
+		}
 		quatMulVec3(&dir, rota, &dir);
 		vec3Normalize(&dest->normal, &dir);
 
