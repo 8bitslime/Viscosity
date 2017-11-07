@@ -16,6 +16,9 @@ typedef struct contact_joint {
 } contact_joint, joint_max;
 
 //World
+typedef struct accumulator {
+	vec3 vel, avel;
+} accumulator;
 typedef struct world {
 	vec3 gravity;
 	
@@ -30,6 +33,7 @@ typedef struct world {
 	vec3 *body_vel;  //3
 	quat *body_rot;  //4
 	vec3 *body_avel; //3
+	accumulator *body_accum; // 6
 	aabb *body_aabb; //6
 	shape **body_shape; //array of pointers, shapes are stored separately from worlds
 
@@ -45,7 +49,7 @@ typedef struct world {
 
 static world* allocateWorld(size_t body_cap, size_t joint_cap) {
 	const size_t size = sizeof(world) +						//world
-						sizeof(scalar) * 19 * body_cap +	//body data
+						sizeof(scalar) * 25 * body_cap +	//body data
 						(sizeof(shape*) + sizeof(bodyType) + sizeof(size_t)) * body_cap + //body types, shapes, stack
 						(sizeof(joint_max) + sizeof(size_t)) * joint_cap; //Joint array and stack
 	unsigned char* data = calloc(1, size);
@@ -61,7 +65,8 @@ static world* allocateWorld(size_t body_cap, size_t joint_cap) {
 	ret->body_vel    = (vec3*)&ret->body_pos[body_cap];
 	ret->body_rot    = (quat*)&ret->body_vel[body_cap];
 	ret->body_avel   = (vec3*)&ret->body_rot[body_cap];
-	ret->body_aabb   = (aabb*)&ret->body_avel[body_cap];
+	ret->body_accum  = (accumulator*)&ret->body_avel[body_cap];
+	ret->body_aabb   = (aabb*)&ret->body_accum[body_cap];
 	ret->body_shape  = (shape**)&ret->body_aabb[body_cap];
 	ret->joint_empty = (size_t*)&ret->body_shape[body_cap];
 	ret->joints      = (joint_max*)&ret->joint_empty[joint_cap];
@@ -178,36 +183,36 @@ void bodySetShape(world *w, bodyID b, shape *s) {
 static inline void applyForce(world *w, bodyID b, const vec3 *pos, const vec3 *force) {
 	if (w->body_type[b] != BODY_DYNAMIC) {
 		return;
-	}
-
-	scalar mass;
-	mat3 inertia;
-
-	if (w->body_shape[b] != NULL) {
-		scalar m = w->body_shape[b]->mass;
-		if (m == 0 || w->body_shape[b]->type == SHAPE_PLANE) {
-			return;
-		}
-		mass = 1.f / m;
-		inertia = w->body_shape[b]->invInertiaTensor;
 	} else {
-		mass = 1;
-		inertia = mat3Identity;
+		scalar mass;
+		mat3 inertia;
+
+		if (w->body_shape[b] != NULL) {
+			scalar m = w->body_shape[b]->mass;
+			if (m == 0 || w->body_shape[b]->type == SHAPE_PLANE) {
+				return;
+			}
+			mass = 1.f / m;
+			inertia = w->body_shape[b]->invInertiaTensor;
+		} else {
+			mass = 1;
+			inertia = mat3Identity;
+		}
+
+		//Linear velocity
+		vec3 linear;
+		vec3MulScalar(&linear, force, mass);
+		vec3Add(&w->body_accum[b].vel, &w->body_accum[b].vel, &linear);
+
+		//Angular velocity
+		vec3 toPos;
+		vec3Sub(&toPos, pos, &w->body_pos[b]);
+		vec3 cross;
+		vec3Cross(&cross, &toPos, force);
+		vec3 torque;
+		mat3MulVec3(&torque, &inertia, &cross);
+		vec3Add(&w->body_accum[b].avel, &w->body_accum[b].avel, &torque);
 	}
-
-	//Linear velocity
-	vec3 linear;
-	vec3MulScalar(&linear, force, mass);
-	vec3Add(&w->body_vel[b], &w->body_vel[b], &linear);
-
-	//Angular velocity
-	vec3 toPos;
-	vec3Sub(&toPos, pos, &w->body_pos[b]);
-	vec3 cross;
-	vec3Cross(&cross, &toPos, force);
-	vec3 torque;
-	mat3MulVec3(&torque, &inertia, &cross);
-	vec3Add(&w->body_avel[b], &w->body_avel[b], &torque);
 }
 void bodyApplyForce(world *w, bodyID b, const vec3 *pos, const vec3 *force) {
 	applyForce(w, b, pos, force);
@@ -365,6 +370,11 @@ static inline void integrateVelocity(world *w, scalar dt) {
 
 	for (size_t i = 0; i < w->body_cap; i++) {
 		if (w->body_type[i] > BODY_STATIC) {
+
+			vec3Add(&w->body_vel[i], &w->body_vel[i], &w->body_accum[i].vel);
+			vec3Add(&w->body_avel[i], &w->body_avel[i], &w->body_accum[i].avel);
+			w->body_accum[i] = (accumulator){0};
+
 			{ //Linear velocity
 				vec3 delta;
 				vec3MulScalar(&delta, &w->body_vel[i], dt);

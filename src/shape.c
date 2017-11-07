@@ -83,7 +83,7 @@ shape* shapeCreateBox(const vec3 *size) {
 	box *ret = (box*)malloc(sizeof(box));
 
 	ret->s.type = SHAPE_BOX;
-	ret->s.restitution = 0.5f;
+	ret->s.restitution = 0.001f;
 	ret->s.friction = 0.5f;
 	vec3MulScalar(&ret->size, size, 0.5f);
 	boxMass(ret, 1);
