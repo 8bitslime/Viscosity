@@ -38,4 +38,4 @@ VISCO_API void shapeRecalcIntertia(shape* shape);
 VISCO_API void shapeGenerateAabb(aabb *dest, const shape *shape, const quat *rot);
 
 //Tests collision between 2 shapes. returns the amount of contacts.
-VISCO_API int shapeCollide(contact *dest, size_t maxContacts, const shape *a, const vec3 *posa, const quat *rota, const shape *b, const vec3 *posb, const quat *rotb);
+VISCO_API int shapeCollide(contact *dest, int maxContacts, const shape *a, const vec3 *posa, const quat *rota, const shape *b, const vec3 *posb, const quat *rotb);

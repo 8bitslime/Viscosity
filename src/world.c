@@ -307,6 +307,8 @@ static inline void solveContact(world *w, contact_joint *j) {
 	shape* sA = w->body_shape[a];
 	shape* sB = w->body_shape[b];
 
+	int div4 = sA->type == SHAPE_PLANE && sB->type == SHAPE_BOX;
+
 	//Error handling and checking body type
 	//TODO: limit amount of error handling
 	if (w->body_type[b] == BODY_DYNAMIC) {
@@ -337,25 +339,29 @@ static inline void solveContact(world *w, contact_joint *j) {
 		return;
 	} else {
 		//restitution
-		scalar e = 1 + mm_min(sA->restitution, sB->restitution);
+		scalar e = 1 + mm_max(sA->restitution, sB->restitution);
 		scalar r = e * contactForce;
+		if (div4) {
+			r /= 4;
+		}
 
 		//friction
-		vec3 fric;
+		vec3 friction;
 		{
 			vec3 temp;
 			vec3Cross(&temp, &relative, &j->contact.normal);
-			vec3Cross(&fric, &temp, &j->contact.normal);
-			vec3Normalize(&fric, &fric);
-
-			scalar f = mm_sqrt(sA->friction * sB->friction) * vec3Dot(&relative, &fric);
-
-			vec3MulScalar(&fric, &fric, f);
+			vec3Cross(&friction, &temp, &j->contact.normal);
+			vec3Normalize(&friction, &friction);
+			scalar f = mm_sqrt(sA->friction * sB->friction) * vec3Dot(&relative, &friction);
+			if (div4) {
+				f /= 4;
+			}
+			vec3MulScalar(&friction, &friction, f);
 		}
 
 		vec3 force;
 		vec3MulScalar(&force, &j->contact.normal, r);
-		vec3Add(&force, &force, &fric);
+		vec3Add(&force, &force, &friction);
 
 		applyForce(w, a, &j->contact.position, &force);
 		vec3Negate(&force, &force);
