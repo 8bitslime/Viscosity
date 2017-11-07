@@ -32,26 +32,14 @@ VISCO_INLINE void aabbCenter(vec3 *dest, const aabb *a) {
 	vec3MulScalar(dest, &add, 0.5f);
 }
 VISCO_INLINE void aabbClosestPoint(vec3 *dest, const aabb *a, const vec3 *b) {
-	if (b->x > a->max.x) { //x
-		dest->x = a->max.x;
-	} else if (b->x < a->min.x) {
-		dest->x = a->min.x;
-	} else {
-		dest->x = b->x;
-	}
-	if (b->y > a->max.y) { //y
-		dest->y = a->max.y;
-	} else if (b->y < a->min.y) {
-		dest->y = a->min.y;
-	} else {
-		dest->y = b->y;
-	}
-	if (b->z > a->max.z) { //z
-		dest->z = a->max.z;
-	} else if (b->z < a->min.z) {
-		dest->z = a->min.z;
-	} else {
-		dest->z = b->z;
+	for (int i = 0; i < 3; i++) {
+		if (b->data[i] > a->max.data[i]) {
+			dest->data[i] = a->max.data[i];
+		} else if (b->data[i] < a->min.data[i]) {
+			dest->data[i] = a->min.data[i];
+		} else {
+			dest->data[i] = b->data[i];
+		}
 	}
 }
 

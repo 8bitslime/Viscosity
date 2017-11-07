@@ -161,6 +161,41 @@ static inline int collidePlaneSphere(contact *dest, const plane *p, const sphere
 		return 0;
 	}
 }
+static inline int collidePlaneBox(contact *dest, const plane *p, const box *b, const vec3 *posb, const quat *rotb) {
+	scalar dist = vec3Dot(posb, &p->normal) - p->distance;
+	scalar corner = vec3Length(&b->size);
+	if (dist > corner || dist < -corner) {
+		return 0;
+	} else {
+		return 0;
+		//quat reverse;
+		//quatInverse(&reverse, rotb);
+		//vec3 normal;
+		//quatMulVec3(&normal, &reverse, &p->normal);
+
+		//vec3 pointOnPlane;
+		//vec3MulScalar(&pointOnPlane, &normal, -dist);
+
+		//aabb box = {
+		//	{-b->size.x, -b->size.y, -b->size.z},
+		//	{ b->size.x,  b->size.y,  b->size.z}
+		//};
+
+		//vec3 closest;
+		//aabbClosestPoint(&closest, &box, &pointOnPlane);
+
+		//scalar pDist = vec3Dot(&closest, &normal) + dist;
+		//if (pDist < 0 && pDist > -corner) {
+		//	quatMulVec3(&dest->position, rotb, &closest);
+		//	vec3Add(&dest->position, &dest->position, posb);
+		//	dest->normal = p->normal;
+		//	dest->distance = -pDist;
+		//	return 1;
+		//} else {
+		//	return 0;
+		//}
+	}
+}
 static inline int collideSphereSphere(contact *dest, const sphere *a, const vec3 *posa, const sphere *b, const vec3 *posb) {
 	vec3 t;
 	vec3Sub(&t, posb, posa);
@@ -238,54 +273,36 @@ int shapeCollide(contact *dest, size_t maxContacts, const shape *a, const vec3 *
 		switch (b->type) {
 		case SHAPE_PLANE:
 			return 0;
-			break;
-
 		case SHAPE_SPHERE:
 			return collidePlaneSphere(dest, (const plane*)a, (const sphere*)b, posb);
-			break;
-
+		case SHAPE_BOX:
+			return collidePlaneBox(dest, (const plane*)a, (const box*)b, posb, rotb);
 		default:
 			return 0;
-			break;
 		}
 		break;
-
 	case SHAPE_SPHERE:
 		switch (b->type) {
 		case SHAPE_PLANE:
 			return -collidePlaneSphere(dest, (const plane*)b, (const sphere*)a, posa);
-			break;
-
 		case SHAPE_SPHERE:
 			return collideSphereSphere(dest, (const sphere*)a, posa, (const sphere*)b, posb);
-			break;
-
 		case SHAPE_BOX:
 			return -collideBoxSphere(dest, (const box*)b, posb, rotb, (const sphere*)a, posa);
-
 		default:
 			return 0;
-			break;
 		}
 		break;
-
 	case SHAPE_BOX:
 		switch (b->type) {
 		case SHAPE_PLANE:
-			return 0;
-			break;
-
+			return -collidePlaneBox(dest, (const plane*)b, (const box*)a, posa, rota);
 		case SHAPE_SPHERE:
 			return collideBoxSphere(dest, (const box*)a, posa, rota, (const sphere*)b, posb);
-			break;
-
 		default:
 			return 0;
-			break;
 		}
-
 	default:
 		return 0;
-		break;
 	}
 }

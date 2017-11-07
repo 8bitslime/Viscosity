@@ -375,7 +375,7 @@ static inline void integrateVelocity(world *w, scalar dt) {
 				{	//Angular dampening
 					//TODO: allow customizable dampening
 					vec3 dampen;
-					vec3MulScalar(&dampen, &w->body_avel[i], dt * 0.2f);
+					vec3MulScalar(&dampen, &w->body_avel[i], dt * 0.1f);
 					vec3Sub(&w->body_avel[i], &w->body_avel[i], &dampen);
 				}
 
