@@ -30,8 +30,8 @@ shape* shapeCreatePlane(const vec3 *n, scalar d) {
 
 	ret->s.type = SHAPE_PLANE;
 	ret->s.mass = 0;
-	ret->s.restitution = 0.5f;
-	ret->s.friction = 0.5f;
+	ret->s.restitution = 0.2f;
+	ret->s.friction = 0.4f;
 
 	vec3Normalize(&ret->normal, n);
 	ret->distance = d;
@@ -52,8 +52,8 @@ shape* shapeCreateSphere(scalar r) {
 	sphere *ret = (sphere*)malloc(sizeof(sphere));
 
 	ret->s.type = SHAPE_SPHERE;
-	ret->s.restitution = 0.1f;
-	ret->s.friction = 0.2f;
+	ret->s.restitution = 0.2f;
+	ret->s.friction = 0.4f;
 	ret->radius = r;
 	sphereMass(ret, 1);
 
@@ -83,8 +83,8 @@ shape* shapeCreateBox(const vec3 *size) {
 	box *ret = (box*)malloc(sizeof(box));
 
 	ret->s.type = SHAPE_BOX;
-	ret->s.restitution = 0.5f;
-	ret->s.friction = 0.5f;
+	ret->s.restitution = 0.2f;
+	ret->s.friction = 0.4f;
 	vec3MulScalar(&ret->size, size, 0.5f);
 	boxMass(ret, 1);
 
@@ -204,6 +204,10 @@ static inline int collidePlaneBox(contact *dest, int max, const plane *p, const 
 			{ b->size.x, b->size.y,-b->size.z},
 			{ b->size.x, b->size.y, b->size.z},
 		};
+
+		vec3 pos = vec3Zero;
+		dest->distance = 0;
+
 		int contacts = 0;
 		for (int i = 0; i < 8; i++) {
 			scalar pointDist = vec3Dot(&corners[i], &normal) + dist;
@@ -212,27 +216,28 @@ static inline int collidePlaneBox(contact *dest, int max, const plane *p, const 
 			} else {
 				vec3 point;
 				quatMulVec3(&point, rotb, &corners[i]);
-				vec3Add(&dest[contacts].position, &point, posb);
-				//vec3Add(&pos, &pos, &point);
-
-				dest[contacts].normal = p->normal;
-				dest[contacts].distance = -pointDist;
+				vec3Add(&point, &point, posb);
+				//dest[contacts].normal = p->normal;
+				//dest[contacts].distance = -pointDist;
+				vec3Add(&pos, &pos, &point);
+				dest->distance += pointDist;
 
 				contacts++;
-				if (contacts >= max) {
-					//TODO: find most significant contacts
-					break;
-				}
+				//if (contacts >= max) {
+				//	//TODO: find most significant contacts
+				//	break;
+				//}
 			}
 		}
-		return contacts;
-		//if (contacts) {
-		//	vec3DivScalar(&dest->position, &pos, (scalar)contacts);
-		//	dest->normal = p->normal;
-		//	return 1;
-		//} else {
-		//	return 0;
-		//}
+		//return contacts;
+		if (contacts) {
+			vec3DivScalar(&dest->position, &pos, (scalar)contacts);
+			dest->distance /= -((scalar)contacts);
+			dest->normal = p->normal;
+			return 1;
+		} else {
+			return 0;
+		}
 	}
 }
 static inline int collideSphereSphere(contact *dest, const sphere *a, const vec3 *posa, const sphere *b, const vec3 *posb) {
