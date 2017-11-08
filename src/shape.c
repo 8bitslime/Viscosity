@@ -83,7 +83,7 @@ shape* shapeCreateBox(const vec3 *size) {
 	box *ret = (box*)malloc(sizeof(box));
 
 	ret->s.type = SHAPE_BOX;
-	ret->s.restitution = 0.7f;
+	ret->s.restitution = 0.5f;
 	ret->s.friction = 0.5f;
 	vec3MulScalar(&ret->size, size, 0.5f);
 	boxMass(ret, 1);
@@ -212,7 +212,9 @@ static inline int collidePlaneBox(contact *dest, int max, const plane *p, const 
 			} else {
 				vec3 point;
 				quatMulVec3(&point, rotb, &corners[i]);
-				vec3Add(&dest[contacts].position, posb, &point);
+				vec3Add(&dest[contacts].position, &point, posb);
+				//vec3Add(&pos, &pos, &point);
+
 				dest[contacts].normal = p->normal;
 				dest[contacts].distance = -pointDist;
 
@@ -224,6 +226,13 @@ static inline int collidePlaneBox(contact *dest, int max, const plane *p, const 
 			}
 		}
 		return contacts;
+		//if (contacts) {
+		//	vec3DivScalar(&dest->position, &pos, (scalar)contacts);
+		//	dest->normal = p->normal;
+		//	return 1;
+		//} else {
+		//	return 0;
+		//}
 	}
 }
 static inline int collideSphereSphere(contact *dest, const sphere *a, const vec3 *posa, const sphere *b, const vec3 *posb) {

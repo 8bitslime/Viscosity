@@ -28,6 +28,9 @@ VISCO_API bodyType bodyGetType(world *world, bodyID body);
 VISCO_API void bodyGetPosition(vec3 *dest, world *world, bodyID body);
 VISCO_API void bodySetPosition(world *world, bodyID body, const vec3 *position);
 
+VISCO_API void bodyGetOrientation(quat *dest, world *world, bodyID body);
+VISCO_API void bodySetOrientation(world *world, bodyID body, const quat *rot);
+
 VISCO_API void bodyGetTransform(transform *dest, world *world, bodyID body);
 VISCO_API void bodyGetMat4(mat4 *dest, world *world, bodyID body);
 

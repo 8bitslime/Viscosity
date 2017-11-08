@@ -149,6 +149,13 @@ void bodySetPosition(world *w, bodyID b, const vec3 *pos) {
 	w->body_pos[b] = *pos;
 }
 
+void bodyGetOrientation(quat *dest, world *w, bodyID body) {
+	*dest = w->body_rot[body];
+}
+void bodySetOrientation(world *w, bodyID body, const quat *rot) {
+	quatNormalize(&w->body_rot[body], rot);
+}
+
 void bodyGetTransform(transform *dest, world *w, bodyID b) {
 	transform ret = {
 		w->body_pos[b],
@@ -189,7 +196,7 @@ static inline void applyForce(world *w, bodyID b, const vec3 *pos, const vec3 *f
 
 		if (w->body_shape[b] != NULL) {
 			scalar m = w->body_shape[b]->mass;
-			if (m == 0 || w->body_shape[b]->type == SHAPE_PLANE) {
+			if (m == 0) {
 				return;
 			}
 			mass = 1.f / m;
@@ -199,19 +206,21 @@ static inline void applyForce(world *w, bodyID b, const vec3 *pos, const vec3 *f
 			inertia = mat3Identity;
 		}
 
-		//Linear velocity
-		vec3 linear;
-		vec3MulScalar(&linear, force, mass);
-		vec3Add(&w->body_accum[b].vel, &w->body_accum[b].vel, &linear);
+		{//Linear velocity
+			vec3 linear;
+			vec3MulScalar(&linear, force, mass);
+			vec3Add(&w->body_accum[b].vel, &w->body_accum[b].vel, &linear);
+		}
 
-		//Angular velocity
-		vec3 toPos;
-		vec3Sub(&toPos, pos, &w->body_pos[b]);
-		vec3 cross;
-		vec3Cross(&cross, &toPos, force);
-		vec3 torque;
-		mat3MulVec3(&torque, &inertia, &cross);
-		vec3Add(&w->body_accum[b].avel, &w->body_accum[b].avel, &torque);
+		{//Angular velocity
+			vec3 toPos;
+			vec3Sub(&toPos, pos, &w->body_pos[b]);
+			vec3 cross;
+			vec3Cross(&cross, &toPos, force);
+			vec3 torque;
+			mat3MulVec3(&torque, &inertia, &cross);
+			vec3Add(&w->body_accum[b].avel, &w->body_accum[b].avel, &torque);
+		}
 	}
 }
 void bodyApplyForce(world *w, bodyID b, const vec3 *pos, const vec3 *force) {
@@ -331,6 +340,11 @@ static inline void solveContact(world *w, contact_joint *j) {
 	forceAtPoint(&fA, w, a, &j->contact.position);
 	forceAtPoint(&fB, w, b, &j->contact.position);
 
+	if (div4) {
+		vec3DivScalar(&fA, &fA, 4);
+		vec3DivScalar(&fB, &fB, 4);
+	}
+
 	vec3 relative;
 	vec3Sub(&relative, &fB, &fA);
 	scalar contactForce = vec3Dot(&relative, &j->contact.normal);
@@ -341,9 +355,6 @@ static inline void solveContact(world *w, contact_joint *j) {
 		//restitution
 		scalar e = 1 + mm_max(sA->restitution, sB->restitution);
 		scalar r = e * contactForce;
-		if (div4) {
-			r /= 4;
-		}
 
 		//friction
 		vec3 friction;
@@ -353,9 +364,6 @@ static inline void solveContact(world *w, contact_joint *j) {
 			vec3Cross(&friction, &temp, &j->contact.normal);
 			vec3Normalize(&friction, &friction);
 			scalar f = mm_sqrt(sA->friction * sB->friction) * vec3Dot(&relative, &friction);
-			if (div4) {
-				f /= 4;
-			}
 			vec3MulScalar(&friction, &friction, f);
 		}
 
